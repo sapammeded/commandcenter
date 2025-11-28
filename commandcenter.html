@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PATROLI COMMAND CENTER - REAL-TIME SYNC</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+:root{
+  --bg:#05060a; --panel:#07101a; --card:#0b1220; --muted:#9aa4b2; --accent:#00e6ff;
+  --cyber-green:#00ff41; --cyber-blue:#00e6ff; --cyber-purple:#b967ff;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  margin:0;
+  font-family:'Courier New', monospace;
+  background: #000;
+  color:#e6f7ff;
+  overflow:hidden;
+  position: relative;
+}
+
+.matrix-bg {
+  position: fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(0,255,65,0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(0,230,255,0.05) 0%, transparent 50%);
+  background-color: #000;
+  z-index: -2;
+}
+
+.cyber-grid {
+  position: fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background-image: 
+    linear-gradient(rgba(0,255,65,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,65,0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  z-index: -1;
+}
+
+.topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 20px;
+  background: linear-gradient(90deg, #000000, #001122, #000000);
+  border-bottom: 2px solid var(--cyber-green);
+  position: relative;
+}
+
+.brand{
+  font-weight:700;
+  color: var(--cyber-green);
+  text-shadow: 0 0 10px var(--cyber-green);
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+.operator-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 11px;
+}
+
+.operator-name {
+  color: var(--cyber-blue);
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.operator-name:hover {
+  color: var(--cyber-green);
+  text-shadow: 0 0 10px var(--cyber-green);
+}
+
+.shift-info {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.container{
+  display:grid;
+  grid-template-columns: 400px 1fr;
+  height: calc(100vh - 60px);
+  gap: 0;
+}
+
+.panel{
+  background: rgba(7, 16, 26, 0.95);
+  border-right: 1px solid rgba(0,255,65,0.2);
+  padding:15px;
+  overflow:auto;
+}
+
+#mapPanel {
+  border-right: none;
+  position: relative;
+}
+
+.control-section {
+  margin-bottom: 20px;
+  border: 1px solid rgba(0,230,255,0.2);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(0,0,0,0.5);
+}
+
+.section-title {
+  color: var(--cyber-blue);
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-left: 3px solid var(--cyber-blue);
+  padding-left: 8px;
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.control-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.btn{
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,230,255,0.3);
+  background: rgba(0,0,0,0.7);
+  color: var(--accent);
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  transition: all 0.3s ease;
+  text-align: center;
+  flex: 1;
+}
+
+.btn:hover {
+  background: rgba(0,230,255,0.1);
+  border-color: var(--accent);
+}
+
+.btn.primary{
+  background: linear-gradient(135deg, var(--accent), #0088cc);
+  color: #000;
+  font-weight: bold;
+  border: none;
+}
+
+/* PETUGAS MONITORING INPUT */
+.operator-input-section {
+  background: rgba(0,0,0,0.6);
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0,255,65,0.3);
+  margin-bottom: 15px;
+}
+
+.operator-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.operator-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid rgba(0,230,255,0.3);
+  background: rgba(0,0,0,0.5);
+  color: white;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.operator-input:focus {
+  outline: none;
+  border-color: var(--cyber-green);
+  box-shadow: 0 0 10px rgba(0,255,65,0.3);
+}
+
+/* LIST ITEMS */
+.list-item{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  padding:12px;
+  border-radius:6px;
+  margin-bottom:8px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.02), transparent);
+  border: 1px solid rgba(255,255,255,0.05);
+  cursor:pointer;
+  transition: all 0.3s ease;
+}
+
+.list-item:hover {
+  background: linear-gradient(90deg, rgba(0,230,255,0.1), transparent);
+  border-color: rgba(0,230,255,0.3);
+}
+
+.list-item.active {
+  background: linear-gradient(90deg, rgba(0,230,255,0.15), transparent);
+  border-color: var(--accent);
+}
+
+.profile-img{
+  width:50px;
+  height:50px;
+  object-fit:cover;
+  border-radius:50%;
+  border:2px solid rgba(0,230,255,0.5);
+}
+
+.meta{flex:1}
+.meta h4{
+  margin:0;
+  font-size:13px;
+  color:var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meta p{
+  margin:4px 0 0;
+  font-size:11px;
+  color:var(--muted);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.status-online {
+  background: #00ff41;
+  box-shadow: 0 0 8px #00ff41;
+  animation: pulse-dot 2s infinite;
+}
+
+.status-offline {
+  background: #ff4444;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+.form-label {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.5);
+  color: white;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+#map{
+  height:100%;
+  border-radius:0;
+}
+
+.chatBox{
+  margin-top:15px;
+  background:rgba(0,0,0,0.5);
+  padding:15px;
+  border-radius:8px;
+  border:1px solid rgba(0,230,255,0.3);
+}
+
+.chatList{
+  height:150px;
+  overflow:auto;
+  padding:10px;
+  background:rgba(0,0,0,0.3);
+  border-radius:6px;
+  margin-bottom:10px;
+  border:1px solid rgba(255,255,255,0.1);
+}
+
+.chatRow{
+  display:flex;
+  gap:10px;
+  margin-bottom:8px;
+  padding:8px;
+  border-radius:6px;
+  background:rgba(255,255,255,0.03);
+  border-left:3px solid var(--cyber-blue);
+}
+
+.chatRow .chat-sender {
+  min-width: 80px;
+  font-weight: bold;
+  color: var(--cyber-blue);
+  font-size: 11px;
+}
+
+.chatRow .chat-time {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.chatRow .chat-text {
+  flex:1;
+  color:#e6f7ff;
+  font-size:12px;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); box-shadow: 0 0 15px rgba(0,255,65,0.7); }
+  50% { transform: scale(1.1); box-shadow: 0 0 25px rgba(0,255,65,0.9); }
+  100% { transform: scale(1); box-shadow: 0 0 15px rgba(0,255,65,0.7); }
+}
+
+.custom-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+@media(max-width: 900px){ 
+  .container{ grid-template-columns:1fr; } 
+  #map{ height:50vh; } 
+  .control-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+  <div class="matrix-bg"></div>
+  <div class="cyber-grid"></div>
+
+  <div class="topbar">
+    <div class="brand">🚀 PATROLI COMMAND CENTER - REAL-TIME SYNC</div>
+    <div class="operator-info">
+      <div class="operator-name" id="operatorNameDisplay">👮 PETUGAS: AGUS SETIAWAN</div>
+      <div class="shift-info" id="shiftInfoDisplay">📅 Loading...</div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="panel">
+      <!-- PETUGAS MONITORING INPUT -->
+      <div class="operator-input-section">
+        <div class="section-title">PETUGAS MONITORING</div>
+        <div class="operator-input-row">
+          <input type="text" id="operatorNameInput" class="operator-input" placeholder="Nama Petugas Monitoring..." value="AGUS SETIAWAN">
+          <button class="btn primary" id="saveOperatorBtn">💾 Save</button>
+        </div>
+        <div style="font-size:10px; color:var(--muted); margin-top:5px;">
+          Klik nama di header untuk edit cepat
+        </div>
+      </div>
+
+      <!-- SYSTEM STATUS -->
+      <div class="control-section">
+        <div class="section-title">SYSTEM STATUS</div>
+        <div class="control-row">
+          <div id="connectionStatus" class="btn" style="background:#00ff41; color:#000;">
+            🔗 CONNECTED
+          </div>
+          <div id="dataCount" class="btn">
+            📊 Data: 0
+          </div>
+        </div>
+      </div>
+
+      <!-- MAP CONTROLS -->
+      <div class="control-section">
+        <div class="section-title">MAP CONTROLS</div>
+        <div class="control-grid">
+          <button class="btn primary" id="centerAll">📍 Center All</button>
+          <button class="btn" id="toggleFollow">🎯 Follow: OFF</button>
+          <button class="btn" id="clearTracks">🗑️ Clear Tracks</button>
+          <button class="btn" id="refreshData">🔄 Refresh Data</button>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="control-section">
+        <div class="section-title">FILTERS</div>
+        <div class="form-group">
+          <input id="search" class="form-input" placeholder="🔍 Search petugas..." />
+        </div>
+      </div>
+
+      <!-- ACTIVE PETUGAS -->
+      <div class="control-section" style="border:none; padding:0; background:none;">
+        <div class="section-title">ACTIVE PETUGAS</div>
+        <div id="list"></div>
+      </div>
+
+      <!-- CHAT -->
+      <div class="chatBox">
+        <div class="section-title">REALTIME CHAT</div>
+        <div id="chatList" class="chatList"></div>
+        <div class="control-row" style="margin-top:10px">
+          <input id="chatInput" class="form-input" placeholder="Type message..." style="flex:1"/>
+          <button class="btn primary" id="chatSend" style="flex:0.3">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAP -->
+    <div class="panel" id="mapPanel">
+      <div id="map"></div>
+    </div>
+  </div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<script>
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCnooeRNZRzTPDvOWIAH3pXbkIryZgJuic",
+  authDomain: "silitpitik7373.firebaseapp.com",
+  databaseURL: "https://silitpitik7373-default-rtdb.firebaseio.com",
+  projectId: "silitpitik7373",
+  storageBucket: "silitpitik7373.appspot.com",
+  messagingSenderId: "314430704796",
+  appId: "1:314430704796:web:2147f3a3a74bfa7affb159"
+};
+
+if(!window.firebase || !firebase.apps || !firebase.apps.length) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+}
+const db = firebase.database();
+firebase.auth().signInAnonymously().catch(e => console.warn('Auth error:', e));
+
+let map, markers = {}, patrolCache = {}, liveCache = {}, listOrder = [];
+let selectedUid = null, trackLines = {};
+let FOLLOW = false;
+let totalDataCount = 0;
+let currentOperator = "AGUS SETIAWAN";
+
+const elements = {
+  list: document.getElementById('list'),
+  search: document.getElementById('search'),
+  centerAll: document.getElementById('centerAll'),
+  toggleFollow: document.getElementById('toggleFollow'),
+  clearTracks: document.getElementById('clearTracks'),
+  refreshData: document.getElementById('refreshData'),
+  chatList: document.getElementById('chatList'),
+  chatInput: document.getElementById('chatInput'),
+  chatSend: document.getElementById('chatSend'),
+  operatorNameInput: document.getElementById('operatorNameInput'),
+  saveOperatorBtn: document.getElementById('saveOperatorBtn'),
+  operatorNameDisplay: document.getElementById('operatorNameDisplay'),
+  shiftInfoDisplay: document.getElementById('shiftInfoDisplay'),
+  connectionStatus: document.getElementById('connectionStatus'),
+  dataCount: document.getElementById('dataCount')
+};
+
+// ==================== PETUGAS MONITORING SYSTEM ====================
+function setupOperatorSystem() {
+  const savedOperator = localStorage.getItem('patroli_operator');
+  if (savedOperator) {
+    currentOperator = savedOperator;
+    elements.operatorNameInput.value = currentOperator;
+  }
+  
+  updateOperatorDisplay();
+  
+  elements.saveOperatorBtn.addEventListener('click', saveOperatorName);
+  elements.operatorNameInput.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') saveOperatorName();
+  });
+  
+  elements.operatorNameDisplay.addEventListener('click', function() {
+    const newName = prompt('Masukkan nama petugas monitoring:', currentOperator);
+    if (newName && newName.trim()) {
+      currentOperator = newName.trim();
+      elements.operatorNameInput.value = currentOperator;
+      saveOperatorName();
+    }
+  });
+}
+
+function saveOperatorName() {
+  const newName = elements.operatorNameInput.value.trim();
+  if (!newName) {
+    showAlert('❌ Nama petugas tidak boleh kosong!');
+    return;
+  }
+  
+  currentOperator = newName;
+  localStorage.setItem('patroli_operator', currentOperator);
+  updateOperatorDisplay();
+  showAlert('✅ Nama petugas berhasil disimpan: ' + currentOperator);
+}
+
+function updateOperatorDisplay() {
+  elements.operatorNameDisplay.textContent = `👮 PETUGAS: ${currentOperator}`;
+  updateShiftInfo();
+}
+
+function updateShiftInfo() {
+  const now = new Date();
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const dayName = days[now.getDay()];
+  const dateStr = now.toLocaleDateString('id-ID');
+  
+  const hour = now.getHours();
+  let shift = '';
+  if (hour >= 7 && hour < 15) shift = '07:00-15:00';
+  else if (hour >= 15 && hour < 23) shift = '15:00-23:00';
+  else shift = '23:00-07:00';
+  
+  elements.shiftInfoDisplay.textContent = `📅 ${dayName}, ${dateStr} • 🕒 SHIFT: ${shift}`;
+}
+
+// ==================== FIREBASE DATA PROCESSING ====================
+function setupFirebaseListeners() {
+  console.log('🚀 Setting up Firebase listeners...');
+  
+  const patroliRef = db.ref('/patroli');
+  patroliRef.on('value', snap => {
+    const data = snap.val();
+    totalDataCount = 0;
+    
+    if (data && typeof data === 'object') {
+      console.log('🔥 Received patroli data from', Object.keys(data).length, 'users');
+      Object.keys(data).forEach(userId => {
+        const userData = data[userId];
+        if (userData && typeof userData === 'object') {
+          processUserPatroliData(userId, userData);
+          totalDataCount += Object.keys(userData).length;
+        }
+      });
+      updateConnectionStatus(true, `Connected: ${Object.keys(data).length} users`);
+    } else {
+      updateConnectionStatus(true, 'Connected: No data yet');
+    }
+    updateDataCount();
+  });
+
+  const liveRef = db.ref('/live');
+  liveRef.on('value', snap => {
+    const data = snap.val();
+    if (data && typeof data === 'object') {
+      processLiveData(data);
+    }
+  });
+
+  const chatRef = db.ref('/chat/global');
+  chatRef.limitToLast(50).on('child_added', snap => {
+    const message = snap.val();
+    if (message) addChatMessage(message);
+  });
+}
+
+function processUserPatroliData(userId, userData) {
+  const records = [];
+  Object.keys(userData).forEach(recordKey => {
+    const record = userData[recordKey];
+    if (record && typeof record === 'object') {
+      const normalizedRecord = {
+        _key: recordKey,
+        name: record.officer || `Petugas-${userId.slice(-4)}`,
+        lat: record.lat || record.latitude,
+        lng: record.lon || record.longitude || record.lng,
+        time: record.time || record.timestamp || Date.now(),
+        area: record.desc || record.area || record.description || 'Patrol Area',
+        photoUrl: record.photo || record.photoUrl
+      };
+      
+      if (normalizedRecord.lat && normalizedRecord.lng) {
+        records.push(normalizedRecord);
+      }
+    }
+  });
+  
+  records.sort((a, b) => (b.time || 0) - (a.time || 0));
+  patrolCache[userId] = records;
+  
+  if (!listOrder.includes(userId)) {
+    listOrder.push(userId);
+  }
+  
+  if (records.length > 0) {
+    const latestRecord = records[0];
+    addOrUpdateMarker(
+      userId, 
+      latestRecord.lat, 
+      latestRecord.lng, 
+      latestRecord.name, 
+      latestRecord.photoUrl, 
+      latestRecord.time,
+      latestRecord.area
+    );
+  }
+  
+  renderList();
+}
+
+function processLiveData(liveData) {
+  Object.keys(liveData).forEach(userId => {
+    const userLiveData = liveData[userId];
+    liveCache[userId] = userLiveData;
+    
+    const lastGps = userLiveData.lastGps;
+    if (lastGps && lastGps.lat && lastGps.lon) {
+      const name = (userLiveData.presence && userLiveData.presence.officerName) || 
+                   (patrolCache[userId] && patrolCache[userId][0] && patrolCache[userId][0].name) || 
+                   `Petugas-${userId.slice(-4)}`;
+                   
+      addOrUpdateMarker(
+        userId, 
+        lastGps.lat, 
+        lastGps.lon, 
+        name, 
+        null, 
+        lastGps.time,
+        'Live Tracking'
+      );
+    }
+  });
+}
+
+// ==================== MARKER MANAGEMENT ====================
+function addOrUpdateMarker(uid, lat, lng, title, photo, ts, area = '') {
+  if (!lat || !lng) return;
+  
+  const profilePhoto = photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(title)}&background=0e1a2f&color=00e6ff&size=150`;
+  const position = [lat, lng];
+  
+  if (!markers[uid]) {
+    const m = L.marker(position, {
+      icon: L.divIcon({
+        className: 'custom-marker',
+        html: `
+          <div style="
+            background: linear-gradient(135deg, #00e6ff, #0088cc);
+            border: 2px solid #00ff41;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+            box-shadow: 0 0 20px rgba(0,255,65,0.8);
+            animation: pulse 2s infinite;
+          ">
+            👮
+          </div>
+        `,
+        iconSize: [45, 45],
+        iconAnchor: [22, 22]
+      })
+    }).addTo(map);
+    
+    m.bindPopup(createPopupContent(title, profilePhoto, lat, lng, ts, area, uid));
+    m.on('click', () => selectUid(uid));
+    
+    markers[uid] = m;
+    
+    trackLines[uid] = L.polyline([position], {
+      color: '#00ff41',
+      weight: 3,
+      opacity: 0.6,
+      lineCap: 'round'
+    }).addTo(map);
+    
+  } else {
+    markers[uid].setLatLng(position);
+    markers[uid].setPopupContent(createPopupContent(title, profilePhoto, lat, lng, ts, area, uid));
+    
+    if (trackLines[uid]) {
+      const currentLatLngs = trackLines[uid].getLatLngs();
+      currentLatLngs.push(position);
+      trackLines[uid].setLatLngs(currentLatLngs);
+    }
+  }
+  
+  if (FOLLOW && selectedUid === uid) {
+    map.setView(position, 16);
+  }
+}
+
+function createPopupContent(title, photo, lat, lng, ts, area, uid) {
+  return `
+    <div style="text-align:center; min-width:220px; font-family: 'Courier New', monospace;">
+      <div style="font-weight:bold; color:#00e6ff; margin-bottom:5px; font-size:14px;">${title}</div>
+      <div style="font-size:11px; color:#00ff41; margin-bottom:8px;">${area}</div>
+      
+      <img src="${photo}" 
+           style="width:80px;height:80px;object-fit:cover;border-radius:50%;border:2px solid #00e6ff;cursor:pointer;"
+           onclick="showProfileModal('${photo}', '${title}')">
+      
+      <div style="margin-top:8px; font-size:10px; color:#888;">
+        📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>
+        🕒 ${new Date(ts).toLocaleTimeString('id-ID')}<br>
+        📅 ${new Date(ts).toLocaleDateString('id-ID')}
+      </div>
+      
+      <button onclick="focusOnMarker('${uid}')" 
+              style="margin-top:8px; padding:6px 12px; background:#00e6ff; color:#000; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">
+        🎯 FOCUS
+      </button>
+    </div>
+  `;
+}
+
+function renderList() {
+  elements.list.innerHTML = '';
+  listOrder.forEach(uid => {
+    const live = liveCache[uid] || {};
+    const last = (patrolCache[uid] && patrolCache[uid][0]) || {};
+    const name = (live.presence && live.presence.officerName) || last.name || `Petugas-${uid.slice(-4)}`;
+    const photo = getProfilePhoto(uid, name);
+    const time = (live.presence && live.presence.lastSeen) || last.time || 0;
+    const area = last.area || 'Patrol Area';
+    
+    const isOnline = (Date.now() - time) < 300000;
+    
+    const row = document.createElement('div');
+    row.className = `list-item ${selectedUid === uid ? 'active' : ''}`;
+    row.id = 'li-' + uid;
+    
+    row.innerHTML = `
+      <img class="profile-img" src="${photo}" alt="${name}">
+      <div class="meta">
+        <h4>
+          <span class="status-dot ${isOnline ? 'status-online' : 'status-offline'}"></span>
+          ${name}
+        </h4>
+        <p>${area} • ${fmtTs(time)}</p>
+      </div>
+    `;
+    
+    row.onclick = () => selectUid(uid);
+    elements.list.appendChild(row);
+  });
+}
+
+function getProfilePhoto(uid, name) {
+  if (patrolCache[uid] && patrolCache[uid][0] && patrolCache[uid][0].photoUrl) {
+    return patrolCache[uid][0].photoUrl;
+  }
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0e1a2f&color=00e6ff&size=150&bold=true`;
+}
+
+function fmtTs(ts) {
+  if (!ts) return '—';
+  const n = Number(ts);
+  const ms = n < 1e12 ? n * 1000 : n;
+  const d = new Date(ms);
+  if (isNaN(d)) return '—';
+  
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
+  return d.toLocaleDateString('id-ID');
+}
+
+function selectUid(uid) {
+  selectedUid = uid;
+  document.querySelectorAll('.list-item').forEach(n => n.classList.remove('active'));
+  const e = document.getElementById('li-' + uid); 
+  if (e) e.classList.add('active');
+  
+  if (markers[uid]) {
+    const position = markers[uid].getLatLng();
+    map.setView(position, 16);
+    markers[uid].openPopup();
+  }
+}
+
+function focusOnMarker(uid) {
+  selectUid(uid);
+}
+
+function showProfileModal(photoUrl, name) {
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.95); display:flex; align-items:center;
+    justify-content:center; z-index:10000; backdrop-filter:blur(5px);
+  `;
+  
+  modal.innerHTML = `
+    <div style="
+      background: linear-gradient(135deg, #0b1220, #1a2b3c);
+      padding: 25px; border-radius: 10px; border: 2px solid #00ff41;
+      text-align: center; max-width: 300px; color: white;
+      box-shadow: 0 0 40px rgba(0,255,65,0.3);
+    ">
+      <img src="${photoUrl}" 
+           style="width:120px;height:120px;object-fit:cover;border-radius:8px;border:3px solid #00e6ff;">
+      <div style="margin-top:15px; color:#00e6ff; font-weight:bold; font-size:16px;">${name}</div>
+      <div style="margin-top:5px; color:#9aa4b2; font-size:12px;">Petugas Patroli Aktif</div>
+      <button onclick="this.parentElement.parentElement.remove()" 
+        style="margin-top:15px; padding:8px 20px; background:#ff4444; color:white; 
+               border:none; border-radius:4px; cursor:pointer; font-family: 'Courier New';">
+        ✕ CLOSE
+      </button>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) modal.remove();
+  });
+}
+
+function sendChatMessage() {
+  const message = elements.chatInput.value.trim();
+  if (!message) return;
+  
+  db.ref('/chat/global').push({
+    uid: 'command_center',
+    name: currentOperator,
+    text: message,
+    time: Date.now()
+  });
+  
+  elements.chatInput.value = '';
+}
+
+function addChatMessage(message) {
+  const chatRow = document.createElement('div');
+  chatRow.className = 'chatRow';
+  
+  const time = new Date(message.time || Date.now());
+  const timeString = time.toLocaleTimeString('id-ID', { 
+    hour: '2-digit', 
+    minute: '2-digit' 
+  });
+  
+  chatRow.innerHTML = `
+    <div style="min-width: 80px;">
+      <div class="chat-sender">${message.name || 'Unknown'}</div>
+      <div class="chat-time">${timeString}</div>
+    </div>
+    <div class="chat-text">${message.text}</div>
+  `;
+  
+  elements.chatList.appendChild(chatRow);
+  elements.chatList.scrollTop = elements.chatList.scrollHeight;
+}
+
+function updateConnectionStatus(connected, message = '') {
+  const statusEl = elements.connectionStatus;
+  if (connected) {
+    statusEl.innerHTML = '🔗 CONNECTED';
+    statusEl.style.background = '#00ff41';
+    statusEl.style.color = '#000';
+    if (message) statusEl.title = message;
+  } else {
+    statusEl.innerHTML = '🔌 DISCONNECTED';
+    statusEl.style.background = '#ff4444';
+    statusEl.style.color = '#fff';
+  }
+}
+
+function updateDataCount() {
+  elements.dataCount.innerHTML = `📊 Data: ${totalDataCount}`;
+}
+
+function clearAllTracks() {
+  Object.values(trackLines).forEach(line => {
+    if (line && map.hasLayer(line)) {
+      map.removeLayer(line);
+    }
+  });
+  trackLines = {};
+  showAlert('🗑️ All tracks cleared');
+}
+
+function refreshAllData() {
+  showAlert('🔄 Refreshing data...');
+  renderList();
+}
+
+function showAlert(msg) {
+  const alert = document.createElement('div');
+  alert.style.cssText = `
+    position:fixed; right:20px; bottom:20px; padding:12px 15px;
+    background:#00ff41; color:#000; border-radius:6px; z-index:9999;
+    font-family:monospace; font-size:12px; font-weight:bold;
+    border:1px solid #00cc33; box-shadow:0 0 20px rgba(0,255,65,0.5);
+  `;
+  alert.textContent = msg;
+  document.body.appendChild(alert);
+  setTimeout(() => alert.remove(), 3000);
+}
+
+function initializeMap() {
+  map = L.map('map', { zoomControl: false }).setView([-6.2, 106.81666], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
+}
+
+elements.centerAll.addEventListener('click', () => {
+  const keys = Object.keys(markers);
+  if (!keys.length) return showAlert('❌ No markers found');
+  const bounds = L.latLngBounds(keys.map(k => markers[k].getLatLng()));
+  map.fitBounds(bounds.pad(0.1));
+  showAlert('📍 Centered on all markers');
+});
+
+elements.toggleFollow.addEventListener('click', () => {
+  FOLLOW = !FOLLOW;
+  elements.toggleFollow.textContent = `🎯 Follow: ${FOLLOW ? 'ON' : 'OFF'}`;
+  showAlert(`Follow mode: ${FOLLOW ? 'ON' : 'OFF'}`);
+});
+
+elements.clearTracks.addEventListener('click', clearAllTracks);
+elements.refreshData.addEventListener('click', refreshAllData);
+elements.chatSend.addEventListener('click', sendChatMessage);
+elements.chatInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') sendChatMessage();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  initializeMap();
+  setupOperatorSystem();
+  setupFirebaseListeners();
+  
+  updateShiftInfo();
+  setInterval(updateShiftInfo, 60000);
+  
+  setTimeout(() => {
+    showAlert('🚀 Command Center Ready - Listening for patrol data...');
+  }, 1000);
+});
+
+console.log('🎯 PATROLI COMMAND CENTER - REAL-TIME SYNC LOADED');
+</script>
+</body>
+</html>
