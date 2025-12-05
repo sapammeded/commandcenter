@@ -1,0 +1,1271 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CYBER PATROL — MONITORING SYSTEM</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+:root{
+  --bg:#05060a; --panel:#07101a; --card:#0b1220; --muted:#9aa4b2; --accent:#00e6ff;
+  --cyber-green:#00ff88; --cyber-red:#ff0055; --cyber-blue:#0099ff; --cyber-purple:#aa00ff;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Courier New', monospace, system-ui;background:linear-gradient(180deg,#02040a,#07101a);color:#e6f7ff}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:linear-gradient(90deg,#041023,#081428);border-bottom:1px solid rgba(0,230,255,0.1);position:relative;overflow:hidden}
+.topbar::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(90deg, transparent, rgba(0,255,136,0.05), transparent);animation:scanline 3s linear infinite}
+@keyframes scanline{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.brand{font-weight:700;color:var(--cyber-green);text-shadow:0 0 10px rgba(0,255,136,0.5)}
+.brand::before{content:'>> '}
+.brand::after{content:' <<'}
+.container{display:grid;grid-template-columns:380px 1fr;height:calc(100vh - 56px);gap:12px;padding:12px}
+.panel{background:linear-gradient(180deg,var(--panel),#041018);border-radius:4px;padding:10px;overflow:auto;border:1px solid rgba(0,230,255,0.1);box-shadow:0 0 15px rgba(0,0,0,0.5)}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.btn{padding:8px 10px;border-radius:4px;border:1px solid rgba(0,230,255,0.3);background:rgba(0,0,0,0.5);color:var(--accent);cursor:pointer;font-family:'Courier New', monospace;transition:all 0.2s}
+.btn:hover{background:rgba(0,230,255,0.1);box-shadow:0 0 8px rgba(0,230,255,0.3)}
+.btn.primary{background:linear-gradient(90deg,var(--cyber-green),var(--cyber-blue));color:#001;border:none;font-weight:bold}
+.btn.danger{background:linear-gradient(90deg,var(--cyber-red),#ff3366);color:#fff;border:none}
+.row{display:flex;gap:8px;align-items:center}
+#map{height:100%;border-radius:4px;border:1px solid rgba(0,230,255,0.2)}
+.list-item{display:flex;gap:10px;align-items:center;padding:8px;border-radius:4px;margin-bottom:8px;background:linear-gradient(90deg,rgba(255,255,255,0.01),transparent);cursor:pointer;border-left:3px solid transparent;transition:all 0.2s}
+.list-item:hover{background:linear-gradient(90deg,rgba(0,230,255,0.05),transparent);border-left-color:var(--accent)}
+.list-item.online{border-left-color:var(--cyber-green)}
+.list-item.offline{border-left-color:var(--cyber-red)}
+.thumb{width:64px;height:48px;object-fit:cover;border-radius:4px;border:1px solid rgba(255,255,255,0.03);position:relative;background:linear-gradient(135deg, rgba(0,230,255,0.1), rgba(0,255,136,0.05))}
+.status-indicator{position:absolute;bottom:2px;right:2px;width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,0.5)}
+.status-online{background-color:var(--cyber-green);box-shadow:0 0 5px var(--cyber-green)}
+.status-offline{background-color:var(--cyber-red);box-shadow:0 0 5px var(--cyber-red)}
+.meta{flex:1}
+.meta h4{margin:0;font-size:14px;color:var(--accent)}
+.meta p{margin:4px 0 0;font-size:12px;color:var(--muted)}
+.small{font-size:12px;color:var(--muted)}
+.chatBox{margin-top:10px;background:rgba(255,255,255,0.02);padding:8px;border-radius:4px;border:1px solid rgba(0,230,255,0.1)}
+.chatList{height:160px;overflow:auto;padding:6px;background:transparent;border-radius:4px}
+.chatRow{display:flex;gap:6px;margin-bottom:8px}
+.alertFloat{position:fixed;right:18px;bottom:18px;padding:12px 14px;background:var(--cyber-red);color:#041018;border-radius:4px;z-index:9999;font-weight:bold;border-left:4px solid #ff3366}
+.search{width:100%;padding:8px;border-radius:4px;border:1px solid rgba(0,230,255,0.2);background:rgba(0,0,0,0.25);color:var(--muted);font-family:'Courier New', monospace}
+.footer{font-size:12px;color:var(--muted);margin-top:8px}
+.tabs{display:flex;margin-bottom:10px;border-bottom:1px solid rgba(0,230,255,0.2)}
+.tab{flex:1;padding:8px;text-align:center;cursor:pointer;border-bottom:2px solid transparent}
+.tab.active{color:var(--cyber-green);border-bottom-color:var(--cyber-green)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.manual-input{margin-bottom:10px}
+.manual-input input,.manual-input select{width:100%;padding:8px;border-radius:4px;border:1px solid rgba(0,230,255,0.2);background:rgba(0,0,0,0.25);color:var(--muted);margin-bottom:8px;font-family:'Courier New', monospace}
+.manual-input .form-row{display:flex;gap:8px;margin-bottom:8px}
+.manual-input .form-row input,.manual-input .form-row select{flex:1;margin-bottom:0}
+.manual-input button{width:100%}
+
+/* ✅ DEVICE BADGE */
+.device-badge {
+  position: fixed;
+  top: 15px;
+  right: 15px;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  border: 1px solid rgba(0, 230, 255, 0.4);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.device-icon {
+  font-size: 14px;
+}
+
+.device-text {
+  font-weight: bold;
+  color: #00e6ff;
+}
+
+.device-detail {
+  font-size: 10px;
+  color: #9aa4b2;
+}
+
+.device-spoofed {
+  color: #ff0055;
+  font-weight: bold;
+  margin-left: 5px;
+}
+
+/* ✅ DEVICE INFO IN LIST */
+.device-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #00ff88;
+  margin-top: 3px;
+}
+
+.device-info.spoofed {
+  color: #ff3366;
+}
+
+@media(max-width:900px){ 
+  .container{grid-template-columns:1fr} 
+  #map{height:50vh} 
+  .device-badge {
+    top: 10px;
+    right: 10px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+}
+
+
+/* ✅ Panic indicator di Command Center */
+.list-item.panic-active{
+  border-color: var(--cyber-red);
+  box-shadow: 0 0 12px rgba(255,0,85,0.9);
+  animation: panicBlink 0.8s linear infinite;
+}
+@keyframes panicBlink{
+  0%,100%{ background: rgba(255,0,85,0.10); }
+  50%{ background: rgba(255,0,85,0.35); }
+}
+</style>
+</head>
+<body>
+  <!-- ✅ DEVICE BADGE -->
+  <div id="deviceBadge" class="device-badge">
+    <span class="device-icon" id="deviceIcon">💻</span>
+    <div>
+      <div class="device-text" id="deviceText">Loading device...</div>
+      <div class="device-detail" id="deviceDetail">Detecting your device</div>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="brand">CYBER PATROL — MONITORING SYSTEM</div>
+    <div class="small">Realtime • GeoFence • Anomaly • Chat • Export • Replay</div>
+  </div>
+
+  <div class="container">
+    <div class="panel" id="leftPanel">
+      <div class="tabs">
+        <div class="tab active" data-tab="monitor">Monitor</div>
+        <div class="tab" data-tab="manual">Manual Input</div>
+        <div class="tab" data-tab="cleanup">Deep Clean</div>
+      </div>
+      
+      <!-- Monitor Tab -->
+      <div class="tab-content active" id="monitor-tab">
+        <div class="controls">
+          <button class="btn primary" id="centerAll">Center All</button>
+          <button class="btn" id="toggleFollow">Follow: OFF</button>
+          <button class="btn" id="toggleSound">Sound: OFF</button>
+          <button class="btn" id="exportCsv">Export CSV</button>
+          <button class="btn" id="exportXlsx">Export XLSX</button>
+          <button class="btn danger" id="btnStopAlarm">Stop Alarm</button>
+        </div>
+
+        <div style="margin-bottom:8px">
+          <input id="search" class="search" placeholder="Search name / area / shift..." />
+        </div>
+
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input id="from" type="datetime-local" style="flex:1;padding:8px;border-radius:4px;border:0;background:rgba(0,0,0,0.2);color:var(--muted)"/>
+          <input id="to" type="datetime-local" style="flex:1;padding:8px;border-radius:4px;border:0;background:rgba(0,0,0,0.2);color:var(--muted)"/>
+        </div>
+
+        <div style="margin-bottom:8px">
+          <label class="small">Area bbox (swLat,swLng,neLat,neLng)</label>
+          <input id="bbox" placeholder="-6.35,106.70,-6.10,106.90" style="width:100%;padding:8px;border-radius:4px;border:0;background:rgba(0,0,0,0.2);color:var(--muted)"/>
+        </div>
+
+        <div style="font-weight:700;margin-bottom:6px">Petugas / Live</div>
+        <div id="list"></div>
+
+        <div style="margin-top:10px;font-weight:700">Playback</div>
+        <div class="row" style="margin-bottom:8px">
+          <button class="btn" id="startReplay">Start</button>
+          <button class="btn" id="stopReplay">Stop</button>
+          <select id="speed"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select>
+        </div>
+
+        <div class="chatBox">
+          <div style="font-weight:700;margin-bottom:6px">Chat (Realtime)</div>
+          <div id="chatList" class="chatList"></div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <input id="chatInput" placeholder="Ketik pesan..." style="flex:1;padding:8px;border-radius:4px;border:0;background:rgba(0,0,0,0.18);color:var(--muted)"/>
+            <button class="btn" id="chatSend">Send</button>
+          </div>
+        </div>
+
+        <div class="footer">DB: <span id="dbPath">/patroli & /live</span> • Photos via Cloudinary/public URLs</div>
+      </div>
+      
+      <!-- Manual Input Tab -->
+      <div class="tab-content" id="manual-tab">
+        <div class="manual-input">
+          <input type="text" id="manualName" placeholder="Nama Petugas" />
+          
+          <div class="form-row">
+            <select id="manualShift">
+              <option value="">Pilih Shift</option>
+              <option value="Pagi">Shift Pagi</option>
+              <option value="Siang">Shift Siang</option>
+              <option value="Malam">Shift Malam</option>
+            </select>
+            <select id="manualHari">
+              <option value="">Pilih Hari</option>
+              <option value="Senin">Senin</option>
+              <option value="Selasa">Selasa</option>
+              <option value="Rabu">Rabu</option>
+              <option value="Kamis">Kamis</option>
+              <option value="Jumat">Jumat</option>
+              <option value="Sabtu">Sabtu</option>
+              <option value="Minggu">Minggu</option>
+            </select>
+          </div>
+          
+          <div class="form-row">
+            <input type="number" id="manualTanggal" placeholder="Tanggal (1-31)" min="1" max="31" />
+            <select id="manualBulan">
+              <option value="">Pilih Bulan</option>
+              <option value="01">Januari</option>
+              <option value="02">Februari</option>
+              <option value="03">Maret</option>
+              <option value="04">April</option>
+              <option value="05">Mei</option>
+              <option value="06">Juni</option>
+              <option value="07">Juli</option>
+              <option value="08">Agustus</option>
+              <option value="09">September</option>
+              <option value="10">Oktober</option>
+              <option value="11">November</option>
+              <option value="12">Desember</option>
+            </select>
+            <input type="number" id="manualTahun" placeholder="Tahun" min="2020" max="2030" value="2025" />
+          </div>
+          
+          <div class="form-row">
+            <input type="number" id="manualJam" placeholder="Jam (0-23)" min="0" max="23" />
+            <input type="number" id="manualMenit" placeholder="Menit (0-59)" min="0" max="59" />
+          </div>
+          
+          <button class="btn primary" id="addManual">Tambah Petugas Manual</button>
+        </div>
+        <div id="manualList"></div>
+      </div>
+      
+      <!-- Deep Clean Tab -->
+      <div class="tab-content" id="cleanup-tab">
+        <div style="margin-bottom:15px;padding:10px;background:rgba(255,0,85,0.1);border-radius:4px;border:1px solid var(--cyber-red)">
+          <h4 style="margin:0 0 8px 0;color:var(--cyber-red)">PERINGATAN KRITIS</h4>
+          <p style="margin:0;font-size:12px">Tindakan ini akan menghapus SEMUA data termasuk patroli, live tracking, chat history, dan data manual. Tindakan ini TIDAK DAPAT DIBATALKAN!</p>
+        </div>
+        <div style="margin-bottom:10px">
+          <label><input type="checkbox" id="confirmDelete" /> Saya memahami dan setuju untuk menghapus semua data</label>
+        </div>
+        <button class="btn danger" id="deepClean" disabled>HAPUS SEMUA DATA SISTEM</button>
+        <div id="cleanStatus" style="margin-top:10px;font-size:12px"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="mapPanel">
+      <div id="map"></div>
+    </div>
+  </div>
+
+<!-- libs -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<script>
+/* ================== CONFIG ================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCnooeRNZRzTPDvOWIAH3pXbkIryZgJuic",
+  authDomain: "silitpitik7373.firebaseapp.com",
+  databaseURL: "https://silitpitik7373-default-rtdb.firebaseio.com",
+  projectId: "silitpitik7373",
+  storageBucket: "silitpitik7373.appspot.com",
+  messagingSenderId: "314430704796",
+  appId: "1:314430704796:web:2147f3a3a74bfa7affb159"
+};
+const DB_PATROLI = '/patroli';
+const DB_LIVE = '/live';
+const DB_CHAT = '/chat/global';
+const DB_ALERTS = '/alerts';
+
+if(!window.firebase || !firebase.apps || !firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.database();
+firebase.auth().signInAnonymously().catch(e=>console.warn('auth err', e));
+
+/* ================== DEVICE DETECTION ================== */
+function detectDevice() {
+  try {
+    const ua = navigator.userAgent;
+    console.log('🔍 User Agent:', ua);
+    
+    let browser = 'Unknown';
+    let os = 'Unknown';
+    let deviceType = 'desktop';
+    let deviceIcon = '💻';
+    
+    // Detect OS
+    if (ua.includes('Android')) {
+      os = 'Android';
+      deviceType = 'mobile';
+      deviceIcon = '📱';
+    } else if (ua.includes('iPhone') || ua.includes('iPad')) {
+      os = 'iOS';
+      deviceType = ua.includes('iPad') ? 'tablet' : 'mobile';
+      deviceIcon = ua.includes('iPad') ? '📟' : '📱';
+    } else if (ua.includes('Windows')) {
+      os = 'Windows';
+    } else if (ua.includes('Mac')) {
+      os = 'macOS';
+    } else if (ua.includes('Linux')) {
+      os = 'Linux';
+    }
+    
+    // Detect browser
+    if (ua.includes('Chrome') && !ua.includes('Edg')) browser = 'Chrome';
+    else if (ua.includes('Firefox')) browser = 'Firefox';
+    else if (ua.includes('Safari') && !ua.includes('Chrome')) browser = 'Safari';
+    else if (ua.includes('Edg')) browser = 'Edge';
+    else if (ua.includes('SamsungBrowser')) browser = 'Samsung Internet';
+    else if (ua.includes('Opera') || ua.includes('OPR')) browser = 'Opera';
+    
+    // Update device badge
+    document.getElementById('deviceIcon').textContent = deviceIcon;
+    document.getElementById('deviceText').textContent = `${browser} on ${os}`;
+    document.getElementById('deviceDetail').textContent = `${deviceType.charAt(0).toUpperCase() + deviceType.slice(1)} • ${navigator.platform}`;
+    
+    return { browser, os, deviceType, deviceIcon };
+  } catch (e) {
+    console.error('Device detection failed:', e);
+    document.getElementById('deviceText').textContent = 'Device detection failed';
+    return { browser: 'Unknown', os: 'Unknown', deviceType: 'unknown', deviceIcon: '❓' };
+  }
+}
+
+// Initialize device detection
+setTimeout(detectDevice, 500);
+
+/* UI refs */
+const elList = document.getElementById('list');
+const inpSearch = document.getElementById('search');
+const inpFrom = document.getElementById('from');
+const inpTo = document.getElementById('to');
+const inpBbox = document.getElementById('bbox');
+const btnCenterAll = document.getElementById('centerAll');
+const btnFollow = document.getElementById('toggleFollow');
+const btnSound = document.getElementById('toggleSound');
+const btnExportCsv = document.getElementById('exportCsv');
+const btnExportXlsx = document.getElementById('exportXlsx');
+const btnStartReplay = document.getElementById('startReplay');
+const btnStopReplay = document.getElementById('stopReplay');
+const selSpeed = document.getElementById('speed');
+const chatList = document.getElementById('chatList');
+const chatInp = document.getElementById('chatInput');
+const chatSend = document.getElementById('chatSend');
+
+// New UI elements
+const tabs = document.querySelectorAll('.tab');
+const tabContents = document.querySelectorAll('.tab-content');
+const manualName = document.getElementById('manualName');
+const manualShift = document.getElementById('manualShift');
+const manualHari = document.getElementById('manualHari');
+const manualTanggal = document.getElementById('manualTanggal');
+const manualBulan = document.getElementById('manualBulan');
+const manualTahun = document.getElementById('manualTahun');
+const manualJam = document.getElementById('manualJam');
+const manualMenit = document.getElementById('manualMenit');
+const addManual = document.getElementById('addManual');
+const manualList = document.getElementById('manualList');
+const deepClean = document.getElementById('deepClean');
+const confirmDelete = document.getElementById('confirmDelete');
+const cleanStatus = document.getElementById('cleanStatus');
+
+let FOLLOW = false, SOUND = false;
+
+/* MAP */
+const map = L.map('map', { zoomControl:false }).setView([-6.2,106.81666], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+let markers = {}; // uid -> marker
+let patrolCache = {}; // uid -> [records]
+let liveCache = {}; // uid -> live
+let listOrder = [];
+let selectedUid = null;
+let trackLines = {};
+let replayInterval = null;
+
+// Panic & alerts cache
+let alertsCache = {};
+let panicActiveUids = {};
+let currentPanicUid = null;
+
+// Audio objects untuk panic
+let panicCtx = null;
+let panicOsc = null;
+let panicGain = null;
+let panicInterval = null;
+let panicPlayer = null;
+
+// Manual data storage
+let manualData = JSON.parse(localStorage.getItem('manualPatrolData') || '{}');
+
+/* Tab switching */
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabId = tab.getAttribute('data-tab');
+    
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    
+    tabContents.forEach(content => {
+      content.classList.remove('active');
+      if (content.id === `${tabId}-tab`) {
+        content.classList.add('active');
+      }
+    });
+    
+    if (tabId === 'manual') {
+      renderManualList();
+    }
+  });
+});
+
+/* Confirm delete checkbox */
+confirmDelete.addEventListener('change', function() {
+  deepClean.disabled = !this.checked;
+});
+
+/* Helper function to create timestamp from date components */
+function createTimestamp(tahun, bulan, tanggal, jam, menit) {
+  const date = new Date(
+    parseInt(tahun),
+    parseInt(bulan) - 1,
+    parseInt(tanggal),
+    parseInt(jam),
+    parseInt(menit)
+  );
+  return date.getTime();
+}
+
+/* Helper function to format date for display */
+function formatDateTime(timestamp) {
+  const date = new Date(timestamp);
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  
+  const dayName = days[date.getDay()];
+  const dateNum = date.getDate();
+  const monthName = months[date.getMonth()];
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  
+  return `${dayName}, ${dateNum} ${monthName} ${year} ${hours}:${minutes}`;
+}
+
+/* beep simple */
+function beep(){ if(!SOUND) return; try{ const ctx = new (window.AudioContext||window.webkitAudioContext)(); const o = ctx.createOscillator(); const g = ctx.createGain(); o.type='sine'; o.frequency.value=880; g.gain.value=0.03; o.connect(g); g.connect(ctx.destination); o.start(); setTimeout(()=>{ o.stop(); ctx.close(); },120); }catch(e){} }
+
+/* helpers */
+function fmtTs(ts){
+  if(!ts) return '—';
+  const n = Number(ts);
+  const ms = n < 1e12 ? n * 1000 : n;
+  const d = new Date(ms);
+  if(isNaN(d)) return '—';
+  return d.toLocaleString();
+}
+
+function addOrUpdateMarker(uid, lat, lon, title, photo, ts, device){
+  if(!lat || !lon) return;
+  if(!markers[uid]){
+    const m = L.marker([lat,lon]).addTo(map);
+    // ✅ ADD DEVICE INFO TO POPUP
+    const deviceInfo = device ? `<div style="font-size:11px;color:#00ff88">📱 ${device.browser || ''} on ${device.os || ''}</div>` : '';
+    m.bindPopup(`<b>${title||uid}</b><div style="font-size:12px">${fmtTs(ts)}</div>${deviceInfo}${photo ? `<img src="${photo}" style="width:220px;height:140px;object-fit:cover" onerror="this.style.display='none'"/>` : ''}`);
+    m.on('click', ()=> { selectUid(uid); });
+    markers[uid]=m;
+  } else {
+    const deviceInfo = device ? `<div style="font-size:11px;color:#00ff88">📱 ${device.browser || ''} on ${device.os || ''}</div>` : '';
+    markers[uid].setLatLng([lat,lon]);
+    markers[uid].setPopupContent(`<b>${title||uid}</b><div style="font-size:12px">${fmtTs(ts)}</div>${deviceInfo}${photo ? `<img src="${photo}" style="width:220px;height:140px;object-fit:cover" onerror="this.style.display='none'"/>` : ''}`);
+  }
+  if(FOLLOW && selectedUid === uid){
+    map.setView([lat,lon], 16);
+  }
+}
+
+/* ✅ ENHANCED: render list with device info */
+function renderList(){
+  elList.innerHTML='';
+  listOrder.forEach(uid=>{
+    const live = liveCache[uid] || {};
+    const last = (patrolCache[uid] && patrolCache[uid][0]) || {};
+    const name = (live.presence && live.presence.officerName) || last.name || uid;
+    const photo = last.photo || last.photoUrl || live.photoUrl || null;
+    const time = (live.presence && live.presence.lastSeen) || last.time || last.timestamp || 0;
+    const area = last.area || last.description || '';
+    
+    // ✅ GET DEVICE INFO
+    const device = last.device || live.device || {};
+    const deviceType = device.type || 'desktop';
+    const deviceBrowser = device.browser || 'Unknown';
+    const deviceOS = device.os || 'Unknown';
+    const isSpoofed = device.isSpoofed || false;
+    
+    // Determine online/offline status
+    const lastSeen = live.presence && live.presence.lastSeen;
+    const isOnline = lastSeen && (Date.now() - (lastSeen < 1e12 ? lastSeen * 1000 : lastSeen)) < 300000;
+    
+    const li = document.createElement('div'); 
+    li.className = `list-item ${isOnline ? 'online' : 'offline'}`; 
+    li.id = 'li-'+uid;
+    
+    // Device icon
+    let deviceIcon = '💻';
+    if (deviceType === 'mobile') deviceIcon = '📱';
+    else if (deviceType === 'tablet') deviceIcon = '📟';
+    
+    li.innerHTML = `
+      <div class="thumb">
+        <div class="status-indicator ${isOnline ? 'status-online' : 'status-offline'}"></div>
+      </div>
+      <div class="meta">
+        <h4>${name} ${isSpoofed ? '🔧' : ''}</h4>
+        <p>${area} • ${fmtTs(time)} • ${isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</p>
+        <div class="device-info ${isSpoofed ? 'spoofed' : ''}">
+          ${deviceIcon} ${deviceBrowser} on ${deviceOS}
+          ${isSpoofed ? ' (SPOOFED)' : ''}
+        </div>
+      </div>`;
+    li.onclick = ()=>{ selectUid(uid); };
+    elList.appendChild(li);
+  });
+}
+
+/* select uid */
+function selectUid(uid){
+  selectedUid = uid;
+  startHighlight(uid);
+  const live = liveCache[uid] || {};
+  const lg = live.lastGps || {};
+  const device = live.device || (patrolCache[uid] && patrolCache[uid][0] && patrolCache[uid][0].device) || {};
+  if(lg && lg.lat && lg.lon){
+    map.setView([lg.lat, lg.lon], 16);
+    if(markers[uid]) markers[uid].openPopup();
+  } else if(patrolCache[uid] && patrolCache[uid][0]){
+    const it = patrolCache[uid][0];
+    addOrUpdateMarker(uid, it.lat||it.latitude, it.lng||it.lon, it.name||uid, it.photo||it.photoUrl, it.time||it.timestamp, device);
+    map.setView([it.lat||it.latitude, it.lng||it.lon], 15);
+  }
+}
+
+/* highlight */
+function startHighlight(uid){
+  document.querySelectorAll('.list-item').forEach(n=> n.style.boxShadow='none');
+  const e = document.getElementById('li-'+uid); if(e) e.style.boxShadow='0 12px 30px rgba(0,230,255,0.06)';
+}
+
+/* ✅ ENHANCED: collect rows with device info for export */
+function collectRows(){
+  const rows = [];
+  listOrder.forEach(uid=>{
+    const last = (patrolCache[uid] && patrolCache[uid][0]) || {};
+    const live = liveCache[uid] || {};
+    const pres = live.presence || {};
+    const lg = live.lastGps || {};
+    const device = last.device || live.device || {};
+    
+    rows.push({
+      uid,
+      name: pres.officerName||last.name||'',
+      area: last.area||last.description||'',
+      lat: lg.lat || last.lat || last.latitude || '',
+      lon: lg.lon || last.lng || last.lon || last.longitude || '',
+      time: last.time||last.timestamp||lg.time||pres.lastSeen||'',
+      // ✅ DEVICE INFO
+      device: device.name || `${device.browser || ''} on ${device.os || ''}`,
+      browser: device.browser || '',
+      os: device.os || '',
+      deviceType: device.type || '',
+      isSpoofed: device.isSpoofed ? 'YES' : 'NO'
+    });
+  });
+  return rows;
+}
+
+/* export CSV/XLSX */
+btnExportCsv.addEventListener('click', ()=>{
+  const rows = collectRows();
+  if(rows.length===0){ alert('No data'); return; }
+  const keys = Object.keys(rows[0]);
+  let csv = keys.join(',') + '\n';
+  rows.forEach(r=> csv += keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(',') + '\n');
+  const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='patrol_export.csv'; a.click();
+  setTimeout(()=> URL.revokeObjectURL(url),1500);
+});
+
+btnExportXlsx.addEventListener('click', ()=>{
+  const rows = collectRows();
+  if(rows.length===0){ alert('No data'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'patrol');
+  XLSX.writeFile(wb, 'patrol_export_'+Date.now()+'.xlsx');
+});
+
+/* center all */
+btnCenterAll.addEventListener('click', ()=>{
+  const keys = Object.keys(markers);
+  if(!keys.length) return alert('No markers');
+  const pts = keys.map(k=> markers[k].getLatLng());
+  map.fitBounds(L.latLngBounds(pts).pad(0.2));
+});
+
+/* follow toggle */
+btnFollow.addEventListener('click', ()=>{
+  FOLLOW = !FOLLOW; btnFollow.textContent = 'Follow: ' + (FOLLOW ? 'ON' : 'OFF');
+});
+
+/* sound toggle */
+btnSound.addEventListener('click', ()=>{ SOUND = !SOUND; btnSound.textContent = 'Sound: ' + (SOUND ? 'ON' : 'OFF'); });
+
+/* replay */
+btnStartReplay.addEventListener('click', ()=>{
+  if(!selectedUid) return alert('Pilih petugas di list dulu');
+  const recs = (patrolCache[selectedUid]||[]).slice().reverse();
+  if(!recs.length) return alert('Tidak ada riwayat');
+  const speed = Number(selSpeed.value)||1;
+  let idx=0;
+  if(trackLines[selectedUid]) map.removeLayer(trackLines[selectedUid]);
+  const latlngs=[];
+  replayInterval = setInterval(()=>{
+    const it = recs[idx];
+    const lat = it.lat || it.latitude; const lon = it.lng || it.lon || it.longitude;
+    if(lat && lon){
+      latlngs.push([lat,lon]);
+      if(trackLines[selectedUid]) trackLines[selectedUid].setLatLngs(latlngs);
+      else trackLines[selectedUid] = L.polyline(latlngs, {color:'#00e6ff', weight:4, opacity:0.85}).addTo(map);
+      map.setView([lat,lon], 15);
+    }
+    idx++;
+    if(idx>=recs.length){ clearInterval(replayInterval); replayInterval=null; }
+  }, 1000 / speed);
+});
+
+btnStopReplay.addEventListener('click', ()=>{ if(replayInterval) clearInterval(replayInterval); replayInterval=null; });
+
+/* search filter */
+inpSearch.addEventListener('input', ()=> {
+  const q = inpSearch.value.trim().toLowerCase();
+  document.querySelectorAll('.list-item').forEach(el=>{
+    const txt = el.innerText.toLowerCase();
+    el.style.display = txt.indexOf(q) !== -1 ? 'flex' : 'none';
+  });
+});
+
+/* bbox filter parse */
+function inBbox(lat,lon,bboxStr){
+  if(!bboxStr) return true;
+  try{
+    const parts = bboxStr.split(',').map(s=>Number(s.trim()));
+    if(parts.length!==4 || parts.some(isNaN)) return true;
+    const [swLat,swLng,neLat,neLng] = parts;
+    return lat >= swLat && lat <= neLat && lon >= swLng && lon <= neLng;
+  }catch(e){ return true; }
+}
+
+/* ===================== MANUAL INPUT FUNCTIONS ===================== */
+function addManualOfficer() {
+  const name = manualName.value.trim();
+  const shift = manualShift.value;
+  const hari = manualHari.value;
+  const tanggal = manualTanggal.value;
+  const bulan = manualBulan.value;
+  const tahun = manualTahun.value;
+  const jam = manualJam.value;
+  const menit = manualMenit.value;
+  
+  if (!name || !shift || !hari || !tanggal || !bulan || !tahun || !jam || !menit) {
+    alert('Harap isi semua field dengan benar');
+    return;
+  }
+  
+  if (jam < 0 || jam > 23 || menit < 0 || menit > 59) {
+    alert('Jam harus antara 0-23 dan Menit antara 0-59');
+    return;
+  }
+  
+  if (tanggal < 1 || tanggal > 31) {
+    alert('Tanggal harus antara 1-31');
+    return;
+  }
+  
+  const timestamp = createTimestamp(tahun, bulan, tanggal, jam, menit);
+  const id = 'manual_' + Date.now();
+  
+  // ✅ ADD DEVICE INFO FOR MANUAL ENTRIES TOO
+  const deviceInfo = detectDevice();
+  
+  manualData[id] = {
+    name,
+    shift,
+    hari,
+    tanggal: parseInt(tanggal),
+    bulan,
+    tahun: parseInt(tahun),
+    jam: parseInt(jam),
+    menit: parseInt(menit),
+    time: timestamp,
+    timestamp: timestamp / 1000,
+    formattedTime: formatDateTime(timestamp),
+    // ✅ STORE DEVICE INFO
+    device: {
+      browser: deviceInfo.browser,
+      os: deviceInfo.os,
+      type: deviceInfo.deviceType,
+      isSpoofed: false,
+      name: `${deviceInfo.browser} on ${deviceInfo.os}`
+    }
+  };
+  
+  localStorage.setItem('manualPatrolData', JSON.stringify(manualData));
+  
+  manualName.value = '';
+  manualShift.value = '';
+  manualHari.value = '';
+  manualTanggal.value = '';
+  manualBulan.value = '';
+  manualTahun.value = '2025';
+  manualJam.value = '';
+  manualMenit.value = '';
+  
+  renderManualList();
+  
+  if (!listOrder.includes(id)) listOrder.push(id);
+  refreshUI();
+  
+  showAlert(`Petugas manual ${name} berhasil ditambahkan`);
+}
+
+function renderManualList() {
+  manualList.innerHTML = '';
+  
+  Object.keys(manualData).forEach(id => {
+    const item = manualData[id];
+    const device = item.device || {};
+    const deviceIcon = device.type === 'mobile' ? '📱' : 
+                      device.type === 'tablet' ? '📟' : '💻';
+    
+    const div = document.createElement('div');
+    div.className = 'list-item online';
+    div.innerHTML = `
+      <div class="thumb">
+        <div class="status-indicator status-online"></div>
+      </div>
+      <div class="meta">
+        <h4>${item.name}</h4>
+        <p>${item.shift} • ${item.hari}</p>
+        <p style="font-size:10px;color:var(--muted)">${item.formattedTime}</p>
+        <div class="device-info">
+          ${deviceIcon} ${device.browser || 'Unknown'} on ${device.os || 'Unknown'}
+        </div>
+      </div>
+      <button class="btn" style="padding:4px 8px;font-size:10px" onclick="removeManualOfficer('${id}')">Hapus</button>
+    `;
+    div.onclick = () => { selectUid(id); };
+    manualList.appendChild(div);
+  });
+}
+
+function removeManualOfficer(id) {
+  if (confirm('Hapus petugas manual ini?')) {
+    delete manualData[id];
+    localStorage.setItem('manualPatrolData', JSON.stringify(manualData));
+    
+    if (markers[id]) {
+      map.removeLayer(markers[id]);
+      delete markers[id];
+    }
+    
+    const index = listOrder.indexOf(id);
+    if (index > -1) listOrder.splice(index, 1);
+    
+    renderManualList();
+    refreshUI();
+  }
+}
+
+// Add manual officers to the main list
+function integrateManualData() {
+  Object.keys(manualData).forEach(id => {
+    if (!listOrder.includes(id)) listOrder.push(id);
+    
+    const item = manualData[id];
+    if (!patrolCache[id]) {
+      patrolCache[id] = [item];
+    }
+  });
+}
+
+/* ===================== DEEP CLEAN FUNCTIONS ===================== */
+async function performDeepClean() {
+  if (!confirmDelete.checked) {
+    alert('Silakan centang konfirmasi penghapusan terlebih dahulu');
+    return;
+  }
+  
+  if (!confirm('PERINGATAN AKHIR: Tindakan ini akan menghapus SEMUA data termasuk patroli, live tracking, chat history, alerts, dan data manual. Tindakan ini TIDAK DAPAT DIBATALKAN! Lanjutkan?')) {
+    return;
+  }
+  
+  cleanStatus.innerHTML = 'Memulai proses pembersihan sistem...';
+  
+  try {
+    cleanStatus.innerHTML = 'Menghapus data Firebase...';
+    
+    const deletions = [
+      db.ref(DB_PATROLI).remove(),
+      db.ref(DB_LIVE).remove(),
+      db.ref(DB_CHAT).remove(),
+      db.ref(DB_ALERTS).remove()
+    ];
+    
+    await Promise.all(deletions);
+    
+    cleanStatus.innerHTML = 'Membersihkan cache lokal...';
+    
+    patrolCache = {};
+    liveCache = {};
+    listOrder = [];
+    manualData = {};
+    
+    Object.keys(markers).forEach(id => {
+      map.removeLayer(markers[id]);
+    });
+    markers = {};
+    
+    Object.keys(trackLines).forEach(id => {
+      map.removeLayer(trackLines[id]);
+    });
+    trackLines = {};
+    
+    localStorage.clear();
+    
+    elList.innerHTML = '';
+    manualList.innerHTML = '';
+    chatList.innerHTML = '';
+    
+    inpSearch.value = '';
+    inpBbox.value = '';
+    chatInp.value = '';
+    
+    if (replayInterval) {
+      clearInterval(replayInterval);
+      replayInterval = null;
+    }
+    
+    confirmDelete.checked = false;
+    deepClean.disabled = true;
+    
+    cleanStatus.innerHTML = '<span style="color:var(--cyber-green)">✓ PEMBERSIHAN SELESAI: Semua data telah dihapus dari sistem</span>';
+    
+    showAlert('SISTEM BERSIH: Semua data telah dihapus');
+    
+    setTimeout(() => {
+      cleanStatus.innerHTML = '';
+    }, 8000);
+    
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    cleanStatus.innerHTML = `<span style="color:var(--cyber-red)">✗ ERROR: ${error.message}</span>`;
+  }
+}
+
+/* ===================== DB listeners ===================== */
+const patroliRef = db.ref(DB_PATROLI);
+const liveRef = db.ref(DB_LIVE);
+const alertsRef = db.ref(DB_ALERTS);
+
+/* normalize patrol snapshot */
+function processPatroliSnapshot(obj){
+  Object.keys(obj||{}).forEach(uid=>{
+    const recMap = obj[uid] || {};
+    const arr = Object.keys(recMap).map(k => Object.assign({ _key: k }, recMap[k]));
+    arr.sort((a,b)=> (b.time||b.timestamp||0) - (a.time||a.timestamp||0));
+    patrolCache[uid] = arr;
+    if(!listOrder.includes(uid)) listOrder.push(uid);
+  });
+  
+  integrateManualData();
+  
+  listOrder = listOrder.sort((a,b)=>{
+    const ta = (liveCache[a] && (liveCache[a].presence && liveCache[a].presence.lastSeen)) || (patrolCache[a] && patrolCache[a][0] && (patrolCache[a][0].time||patrolCache[a][0].timestamp)) || 0;
+    const tb = (liveCache[b] && (liveCache[b].presence && liveCache[b].presence.lastSeen)) || (patrolCache[b] && patrolCache[b][0] && (patrolCache[b][0].time||patrolCache[b][0].timestamp)) || 0;
+    return tb - ta;
+  });
+  renderList();
+}
+
+/* process live */
+function processLiveSnapshot(obj){
+  Object.keys(obj||{}).forEach(uid=>{
+    liveCache[uid] = obj[uid] || {};
+    const lg = liveCache[uid].lastGps || liveCache[uid].lastgps || liveCache[uid].last_location || {};
+    const lat = lg.lat || lg.latitude || lg.latd;
+    const lon = lg.lon || lg.longitude || lg.long;
+    const name = (liveCache[uid].presence && liveCache[uid].presence.officerName) || liveCache[uid].officer || uid;
+    const photo = liveCache[uid].photoUrl || liveCache[uid].photo || null;
+    const device = liveCache[uid].device || {};
+    if(lat && lon) addOrUpdateMarker(uid, lat, lon, name, photo, lg.time || (liveCache[uid].presence && liveCache[uid].presence.lastSeen), device);
+    if(!listOrder.includes(uid)) listOrder.push(uid);
+  });
+  
+  integrateManualData();
+  
+  listOrder = listOrder.sort((a,b)=>{
+    const ta = (liveCache[a] && (liveCache[a].presence && liveCache[a].presence.lastSeen)) || (patrolCache[a] && patrolCache[a][0] && (patrolCache[a][0].time||patrolCache[a][0].timestamp)) || 0;
+    const tb = (liveCache[b] && (liveCache[b].presence && liveCache[b].presence.lastSeen)) || (patrolCache[b] && patrolCache[b][0] && (patrolCache[b][0].time||patrolCache[b][0].timestamp)) || 0;
+    return tb - ta;
+  });
+  renderList();
+}
+
+/* attach */
+patroliRef.on('value', snap=>{
+  processPatroliSnapshot(snap.val() || {});
+}, e=>console.warn('patroli err', e));
+liveRef.on('value', snap=>{
+  processLiveSnapshot(snap.val() || {});
+}, e=>console.warn('live err', e));
+
+/* child added/changed beeps */
+patroliRef.on('child_added', ()=>{ beep(); });
+patroliRef.on('child_changed', ()=>{ beep(); });
+liveRef.on('child_changed', ()=>{ beep(); });
+
+/* ===================== ANOMALY & GEOFENCE ===================== */
+function haversine(lat1,lon1,lat2,lon2){
+  if(!lat1||!lon1||!lat2||!lon2) return 0;
+  const R=6371000; const toRad=v=>v*Math.PI/180;
+  const dLat=toRad(lat2-lat1); const dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+const anomalyState = {}; const geoState = {}; const geofences = {};
+
+/* load geofences once */
+db.ref('/geofences').once('value').then(s=>{
+  const obj = s.val()||{};
+  Object.keys(obj).forEach(k=>{
+    const g = obj[k];
+    geofences[k] = g;
+    if(g.type === 'polygon' && Array.isArray(g.coords)){ L.polygon(g.coords, {color:'#ff5c5c', weight:2, fillOpacity:0.06}).addTo(map); }
+    else if(g.type === 'bbox' && g.coords && g.coords.length===4){
+      const [swLat,swLng,neLat,neLng] = g.coords; L.rectangle([[swLat,swLng],[neLat,neLng]], {color:'#ffb86b', weight:2, fillOpacity:0.03}).addTo(map);
+    }
+  });
+});
+
+/* simple point-in-polygon */
+function pointInPoly(point, vs){
+  if(!vs||!vs.length) return false;
+  const x=point[0], y=point[1];
+  let inside=false;
+  for(let i=0,j=vs.length-1;i<vs.length;j=i++){
+    const xi=vs[i][0], yi=vs[i][1], xj=vs[j][0], yj=vs[j][1];
+    const intersect = ((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi+1e-12)+xi);
+    if(intersect) inside=!inside;
+  }
+  return inside;
+}
+
+function pushAlert(uid,type,details){
+  const ref = db.ref('/alerts').push();
+  ref.set({ uid, type, details, time: Date.now() });
+  showAlert(`${type} • ${uid} • ${JSON.stringify(details).slice(0,80)}`);
+}
+
+/* detect for a uid sample */
+function detectFor(uid, lat, lon, t){
+  if(!lat||!lon) return;
+  const s = anomalyState[uid] || {};
+  const now = t || Date.now();
+  if(s.lastLat !== undefined && s.lastLon !== undefined && s.lastTime){
+    const dist = haversine(s.lastLat, s.lastLon, lat, lon);
+    const dt = Math.max(1, (now - s.lastTime)/1000); // sec
+    const speed = (dist/dt)*3.6; // km/h
+    if(speed > 120){
+      pushAlert(uid,'HIGH_SPEED',{speed:Math.round(speed), dist:Math.round(dist)});
+      beep();
+    }
+    if(dist > 2000){
+      pushAlert(uid,'LARGE_JUMP',{dist:Math.round(dist)});
+      beep();
+    }
+    if(dist < 5 && (now - (s.lastMoveTime||s.lastTime)) > (10*60*1000)){
+      pushAlert(uid,'LONG_STOP',{idleMs: now - (s.lastMoveTime||s.lastTime)});
+      beep();
+    }
+    if(dist > 5) s.lastMoveTime = now;
+  } else s.lastMoveTime = now;
+  s.lastLat = lat; s.lastLon = lon; s.lastTime = now;
+  anomalyState[uid]=s;
+
+  // geofence check
+  Object.keys(geofences).forEach(gid=>{
+    const g = geofences[gid];
+    let inside=false;
+    if(g.type==='polygon' && Array.isArray(g.coords)) inside = pointInPoly([lat,lon], g.coords);
+    else if(g.type==='bbox' && g.coords && g.coords.length===4){
+      const [swLat,swLng,neLat,neLng] = g.coords; inside = (lat>=swLat && lat<=neLat && lon>=swLng && lon<=neLng);
+    }
+    geoState[uid] = geoState[uid]||{};
+    const prev = !!geoState[uid][gid];
+    if(inside && !prev){ pushAlert(uid,'GEOFENCE_ENTER',{geofence:gid,name:g.name}); geoState[uid][gid]=true; }
+    if(!inside && prev){ pushAlert(uid,'GEOFENCE_EXIT',{geofence:gid,name:g.name}); geoState[uid][gid]=false; }
+  });
+}
+
+/* integrate anomaly on live/patroli updates */
+liveRef.on('value', snap=>{
+  const obj = snap.val()||{};
+  Object.keys(obj).forEach(uid=>{
+    const rec = obj[uid] || {};
+    const lg = rec.lastGps || rec.lastgps || rec.last_location || {};
+    const lat = Number(lg.lat || lg.latitude); const lon = Number(lg.lon || lg.longitude);
+    const t = lg.time || (rec.presence && rec.presence.lastSeen) || Date.now();
+    detectFor(uid, lat, lon, t);
+  });
+});
+patroliRef.on('child_added', snap=>{
+  const uid = snap.key; const recs = snap.val()||{};
+  Object.keys(recs).forEach(k=>{
+    const it = recs[k]; const lat = Number(it.lat||it.latitude); const lon = Number(it.lng||it.lon||it.longitude);
+    detectFor(uid, lat, lon, it.time||it.timestamp||Date.now());
+  });
+});
+patroliRef.on('child_changed', snap=>{
+  const uid = snap.key; const recs = snap.val()||{};
+  let latest = null;
+  Object.keys(recs).forEach(k=>{ const it = recs[k]; if(!latest || ((it.time||it.timestamp||0) > (latest.time||latest.timestamp||0))) latest = it; });
+  if(latest){ detectFor(uid, Number(latest.lat||latest.latitude), Number(latest.lng||latest.lon||latest.longitude), latest.time||latest.timestamp||Date.now()); }
+});
+
+/* ===================== CHAT ===================== */
+const chatRef = db.ref(DB_CHAT);
+chatSend.addEventListener('click', ()=> {
+  const t = chatInp.value.trim(); if(!t) return;
+  const u = (firebase.auth().currentUser && firebase.auth().currentUser.uid) || 'guest';
+  const name = 'Operator';
+  chatRef.push({ uid:u, name, text:t, time: Date.now() });
+  chatInp.value='';
+});
+chatRef.limitToLast(200).on('child_added', s=>{
+  const m = s.val(); if(!m) return;
+  const el = document.createElement('div'); el.className='chatRow';
+  el.style.padding='6px'; el.style.borderRadius='6px'; el.style.background='rgba(255,255,255,0.02)';
+  el.innerHTML = `<div style="min-width:64px"><b style="color:#00e6ff">${m.name||m.uid}</b><div style="font-size:11px;color:#9aa4b2">${new Date(m.time||Date.now()).toLocaleTimeString()}</div></div><div style="flex:1;color:#cfe6ff">${m.text}</div>`;
+  chatList.appendChild(el); chatList.scrollTop = chatList.scrollHeight;
+});
+
+/* ===================== UI: update render when data changes ===================== */
+function refreshUI(){
+  const uids = new Set([...Object.keys(patrolCache), ...Object.keys(liveCache)]);
+  listOrder = Array.from(uids);
+  listOrder.sort((a,b)=>{
+    const ta = (liveCache[a] && (liveCache[a].presence && liveCache[a].presence.lastSeen)) || (patrolCache[a] && patrolCache[a][0] && (patrolCache[a][0].time||patrolCache[a][0].timestamp)) || 0;
+    const tb = (liveCache[b] && (liveCache[b].presence && liveCache[b].presence.lastSeen)) || (patrolCache[b] && patrolCache[b][0] && (patrolCache[b][0].time||patrolCache[b][0].timestamp)) || 0;
+    return tb - ta;
+  });
+  renderList();
+}
+
+function renderList(){
+  elList.innerHTML='';
+  listOrder.forEach(uid=>{
+    const live = liveCache[uid] || {};
+    const last = (patrolCache[uid] && patrolCache[uid][0]) || {};
+    const name = (live.presence && live.presence.officerName) || last.name || uid;
+    const photo = last.photo || last.photoUrl || live.photoUrl || null;
+    const time = (live.presence && live.presence.lastSeen) || last.time || last.timestamp || 0;
+    const area = last.area || last.description || '';
+    
+    // ✅ GET DEVICE INFO
+    const device = last.device || live.device || {};
+    const deviceType = device.type || 'desktop';
+    const deviceBrowser = device.browser || 'Unknown';
+    const deviceOS = device.os || 'Unknown';
+    const isSpoofed = device.isSpoofed || false;
+    
+    const lastSeen = live.presence && live.presence.lastSeen;
+    const isOnline = lastSeen && (Date.now() - (lastSeen < 1e12 ? lastSeen * 1000 : lastSeen)) < 300000;
+    
+    const bboxStr = inpBbox.value.trim();
+    const lat = Number(live.lastGps && (live.lastGps.lat || live.lastGps.latitude) || last.lat || last.latitude || 0);
+    const lon = Number(live.lastGps && (live.lastGps.lon || live.lastGps.longitude) || last.lng || last.lon || last.longitude || 0);
+    if(bboxStr && (!inBbox(lat,lon,bboxStr))) return;
+    
+    const row = document.createElement('div'); 
+    row.className = `list-item ${isOnline ? 'online' : 'offline'}`; 
+    row.id='li-'+uid;
+    
+    // Device icon
+    let deviceIcon = '💻';
+    if (deviceType === 'mobile') deviceIcon = '📱';
+    else if (deviceType === 'tablet') deviceIcon = '📟';
+    
+    row.innerHTML = `
+      <div class="thumb">
+        <div class="status-indicator ${isOnline ? 'status-online' : 'status-offline'}"></div>
+      </div>
+      <div class="meta">
+        <h4>${name} ${isSpoofed ? '🔧' : ''}</h4>
+        <p>${area} • ${fmtTs(time)} • ${isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</p>
+        <div class="device-info ${isSpoofed ? 'spoofed' : ''}">
+          ${deviceIcon} ${deviceBrowser} on ${deviceOS}
+          ${isSpoofed ? ' (SPOOFED)' : ''}
+        </div>
+      </div>`;
+    row.onclick = ()=> selectUid(uid);
+    elList.appendChild(row);
+    row._rec = { uid, name, lat, lon, time, area };
+  });
+}
+
+/* ensure UI updates when DB changes */
+patroliRef.on('value', snap=>{
+  patrolCache = snap.val() || {};
+  refreshUI();
+});
+liveRef.on('value', snap=>{
+  liveCache = snap.val() || {};
+  refreshUI();
+});
+
+
+/* ===================== PANIC ALERT HANDLING ===================== */
+function stopPanicAudio(){
+  try{
+    if(panicInterval){ clearInterval(panicInterval); panicInterval = null; }
+    if(panicOsc){ panicOsc.stop(); panicOsc.disconnect(); panicOsc = null; }
+    if(panicCtx){ panicCtx.close(); panicCtx = null; }
+  }catch(e){}
+  if(panicPlayer){
+    try{ panicPlayer.pause(); }catch(e){}
+  }
+}
+
+function startPanicAudio(alert){
+  const kind = (alert && alert.soundKey) || 'siren';
+  if(kind === 'custom' && alert && alert.soundDataUrl){
+    stopPanicAudio();
+    if(!panicPlayer){
+      panicPlayer = new Audio();
+      panicPlayer.loop = true;
+    }
+    panicPlayer.src = alert.soundDataUrl;
+    panicPlayer.currentTime = 0;
+    panicPlayer.play().catch(()=>{});
+    return;
+  }
+  stopPanicAudio();
+  try{
+    panicCtx = new (window.AudioContext || window.webkitAudioContext)();
+    panicOsc = panicCtx.createOscillator();
+    panicGain = panicCtx.createGain();
+    panicOsc.connect(panicGain);
+    panicGain.connect(panicCtx.destination);
+    panicOsc.type = 'sine';
+    let base = 880, low = 440;
+    if(kind === 'siren'){
+      panicOsc.frequency.value = low;
+      let up = true;
+      panicInterval = setInterval(function(){
+        panicOsc.frequency.value = up ? base : low;
+        up = !up;
+      }, 500);
+    } else if(kind === 'beep'){
+      panicOsc.frequency.value = base;
+      panicInterval = setInterval(function(){
+        panicGain.gain.setValueAtTime(0.0, panicCtx.currentTime);
+        panicGain.gain.linearRampToValueAtTime(0.6, panicCtx.currentTime + 0.05);
+        panicGain.gain.linearRampToValueAtTime(0.0, panicCtx.currentTime + 0.25);
+      }, 350);
+    } else { // bell
+      panicOsc.frequency.value = 900;
+      panicGain.gain.setValueAtTime(0.0, panicCtx.currentTime);
+      panicGain.gain.linearRampToValueAtTime(0.9, panicCtx.currentTime + 0.01);
+      panicGain.gain.exponentialRampToValueAtTime(0.01, panicCtx.currentTime + 1.2);
+    }
+    panicGain.gain.value = 0.4;
+    panicOsc.start();
+  }catch(e){}
+}
+
+/* listen for panic alerts */
+alertsRef.on('value', function(snap){
+  alertsCache = snap.val() || {};
+  panicActiveUids = {};
+  let firstActive = null;
+  Object.keys(alertsCache).forEach(function(uid){
+    const a = alertsCache[uid];
+    const row = document.getElementById('li-' + uid);
+    if(a && a.active){
+      panicActiveUids[uid] = true;
+      if(row) row.classList.add('panic-active');
+      if(!firstActive) firstActive = uid;
+    }else{
+      if(row) row && row.classList.remove('panic-active');
+    }
+  });
+  if(firstActive){
+    currentPanicUid = firstActive;
+    startPanicAudio(alertsCache[firstActive]);
+  }else{
+    currentPanicUid = null;
+    stopPanicAudio();
+  }
+});
+/* show floating alert */
+function showAlert(msg){
+  const div = document.createElement('div'); div.className='alertFloat'; div.innerText = msg;
+  document.body.appendChild(div); setTimeout(()=>{ div.remove(); }, 7000);
+}
+
+/* Event listeners for new features */
+addManual.addEventListener('click', addManualOfficer);
+deepClean.addEventListener('click', performDeepClean);
+const btnStopAlarm = document.getElementById('btnStopAlarm');
+if(btnStopAlarm){
+  btnStopAlarm.addEventListener('click', function(){
+    if(currentPanicUid){
+      db.ref(DB_ALERTS + '/' + currentPanicUid).update({ active:false, time: Date.now() });
+    }
+    stopPanicAudio();
+  });
+}
+
+
+// Initialize manual data
+integrateManualData();
+renderManualList();
+
+/* final: log connected */
+db.ref('.info/connected').on('value', s=>{ if(!s.val()) console.warn('firebase disconnected'); });
+
+console.log('CYBER PATROL SYSTEM initialized with device detection');
+</script>
+</body>
+</html>
